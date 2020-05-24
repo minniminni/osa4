@@ -1,12 +1,14 @@
-const supertest = require('supertest')
 const mongoose = require('mongoose')
-const helper = require('./test_helper')
+const supertest = require('supertest')
 const app = require('../app')
+
 const api = supertest(app)
 
+const helper = require('./test_helper')
 const Blog = require('../models/blog')
 
-describe('blogs', () => {
+//BLOGILISTAN TESTIT:
+describe('bloglist', () => {
   //tyhjennetään tietokanta ja lisätään 2 blogia
   beforeEach(async () => {
     await Blog.deleteMany({})
@@ -17,9 +19,7 @@ describe('blogs', () => {
     await blogObject.save()
   })
 
-  //Tehdään HTTP GET-pyyntö osoitteeseen api/blogs
-  //Testataan, että palauttaa oikean määrän blogeja
-  //Varmistetetaan että vastauskoodi on 200 ja data palautetaan oikeassa muodossa
+  //4.8 step1
   test('all blogs are returned', async () => {
     const response = await api
       .get('/api/blogs')
@@ -29,50 +29,16 @@ describe('blogs', () => {
     expect(response.body).toHaveLength(helper.initialBlogs.length)
   })
 
-  //Varmistetaan palautettujen blogien identifioivan kentän olevan id ei _id
+  //4.9* step2
   test('blogs are defined with id not _id', async () => {
     const response = await api.get('/api/blogs')
     response.body.forEach(blog => {
       expect(blog.id).toBeDefined()
-      console.log(`blog id: ${blog.id}`)
       expect(blog._id).not.toBeDefined()
     })
   })
 
-  test('if blog has no likes, return default value zero', async () => {
-    const newBlog = {
-      title: 'TDD harms architecture',
-      author: 'Robert C. Martin',
-      url: 'http://blog.cleancoder.com/uncle-bob/2017/03/03/TDD-Harms-Architecture.html'
-    }
-    await api
-      .post('/api/blogs')
-      .send(newBlog)
-      .expect(201)
-
-    const response =  await api.get('/api/blogs')
-    expect(response.body[helper.initialBlogs.length].likes).toBe(0)
-
-  })
-
-  test('blog without title or url is not added', async () => {
-    const newBlog = {
-      author: 'Robert C. Martin',
-      likes: 2
-    }
-
-    await api
-      .post('/api/blogs')
-      .send(newBlog)
-      .expect(400)
-
-    const blogsAtEnd = await helper.blogsInDb()
-    expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length)
-  })
-
-  //Varmistetaan, että sovellukseen voi lisätä blogeja
-  //Testataan, että blogien määrä kasvaa yhdellä
-  //Testataan, että lisätyn blogin sisältö on oikea
+  //4.10 step3: Ei enää toimi!
   test('a valid blog can be added', async () => {
     const newBlog = {
       title: 'Canonical string reduction',
@@ -93,24 +59,72 @@ describe('blogs', () => {
     expect(titles).toContainEqual('Canonical string reduction')
   })
 
-  //Yksittäisen blogin poisto
+  //4.11 step4: Ei enää toimi
+  test('if blog has no likes, return default value zero', async () => {
+    const newBlog = {
+      title: 'TDD harms architecture',
+      author: 'Robert C. Martin',
+      url: 'http://blog.cleancoder.com/uncle-bob/2017/03/03/TDD-Harms-Architecture.html'
+    }
+    await api
+      .post('/api/blogs')
+      .send(newBlog)
+      .expect(201)
+
+    const response =  await api.get('/api/blogs')
+    expect(response.body[helper.initialBlogs.length].likes).toBe(0)
+
+  })
+
+  //4.12* step5: Ei enää toimi
+  test('blog without title or url is not added', async () => {
+    const newBlog = {
+      author: 'Robert C. Martin',
+      likes: 2
+    }
+
+    await api
+      .post('/api/blogs')
+      .send(newBlog)
+      .expect(400)
+
+    const blogsAtEnd = await helper.blogsInDb()
+    expect(blogsAtEnd).toHaveLength(helper.initialBlogs.length)
+  })
+
+  //Katkaistaan Mongoosen käyttämät tietokantayhteys
+  afterAll(() => {
+    mongoose.connection.close()
+  })
+})
+
+//BLOGILISTAN LAAJENNUS:
+describe('change bloglist', () => {
+  //tyhjennetään tietokanta ja lisätään 2 blogia
+  beforeEach(async () => {
+    await Blog.deleteMany({})
+    let blogObject = new Blog(helper.initialBlogs[0])
+    await blogObject.save()
+
+    blogObject = new Blog(helper.initialBlogs[1])
+    await blogObject.save()
+  })
+
+  //4.13 step1: Yksittäisen blogin poisto: Ei enää toimi
   test('blog can be deleted', async () => {
     const blogsAtStart = await helper.blogsInDb()
-    console.log(`BLOGS AT START LENGTH: ${blogsAtStart.length}`)
-    console.log(`DELETE BLOG: ${blogsAtStart[0].id} ${blogsAtStart[0].title}`)
     await api
       .delete(`/api/blogs/${blogsAtStart[0].id}`)
       .expect(204)
 
     const blogsAtEnd = await helper.blogsInDb()
-    console.log(`BLOGS AT END LENGTH: ${blogsAtEnd.length}`)
     expect(blogsAtEnd).toHaveLength(blogsAtStart.length-1)
   })
-  //Yksittäisen blogin muokkaus: likes lukumäärän päivitystä varten.
+
+  //4.14* step2: Yksittäisen blogin muokkaus
   test('blog change', async () => {
     const blogsAtStart = await helper.blogsInDb()
     const updateBlog = blogsAtStart[0]
-    console.log(`likes before= ${blogsAtStart[0].likes}`)
     updateBlog.likes = blogsAtStart[0].likes + 5
 
     await api
@@ -120,16 +134,18 @@ describe('blogs', () => {
       .expect('Content-Type', /application\/json/)
 
     const blogsAtEnd = await helper.blogsInDb()
-    console.log(`likes after=${blogsAtEnd[0].likes}`)
     expect(blogsAtEnd[0].likes).toBe(updateBlog.likes)
   })
-
-  //Katkaistaan Mongoosen käyttämät tietokantayhteys
-  /*afterAll(async () => {
-    await new Promise(resolve => setTimeout(() => resolve(), 500)) // avoid jest open handle error
-  })*/
 
   afterAll(() => {
     mongoose.connection.close()
   })
 })
+
+/*afterAll(async () => {
+    await new Promise(resolve => setTimeout(() => resolve(), 500)) // avoid jest open handle error
+  })*/
+
+
+
+

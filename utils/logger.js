@@ -8,7 +8,6 @@ const error = (...params) => {
   console.error(...params)
 }
 
-// eslint-disable-next-line indent
-  module.exports = {
+module.exports = {
   info, error
 }
